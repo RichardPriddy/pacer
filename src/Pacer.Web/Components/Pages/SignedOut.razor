@@ -1,0 +1,15 @@
+@page "/signed-out"
+@attribute [AllowAnonymous]
+@inject NavigationManager Nav
+
+<PageTitle>Signed out · Pacer</PageTitle>
+
+<section class="empty">
+    <h1>You’re signed out</h1>
+    <p>Your session on Pacer has ended. Your single sign-on session may still be active.</p>
+    <button type="button" class="btn" @onclick="SignIn">Sign in</button>
+</section>
+
+@code {
+    private void SignIn() => Nav.NavigateTo("/login", forceLoad: true);
+}

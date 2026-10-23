@@ -1,0 +1,6 @@
+*/.containers
+*.vs
+docker/.env.secret
+*bin
+*obj
+*lib

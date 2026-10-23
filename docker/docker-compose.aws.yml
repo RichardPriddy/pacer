@@ -1,0 +1,52 @@
+﻿# Builds the images that ship to AWS, on the hardened dhi.io bases.
+#
+#   docker compose -f docker-compose.aws.yml build
+#
+# Build-only. There are no infrastructure services here because AWS provides
+# them - RDS for postgres, ElastiCache for redis, real S3/SQS/SNS instead of
+# localstack - and no ports, volumes or user-secret mounts, because nothing in
+# this file is meant to be run locally as a working stack.
+#
+# The image names match the ECR repositories in the deploy repo's
+# services/*/service-config.yml, so a tag and push goes straight to the right
+# place. Note the reseeder service builds par/reseed, not par/reseeder.
+#
+# To smoke-test the hardened images locally, layer this over the local stack -
+# the build args and image names here override the local definitions while the
+# infrastructure, ports and mounts come from that file:
+#
+#   docker compose -f docker-compose.local.yml -f docker-compose.aws.yml up --build
+#
+# platform is pinned to linux/amd64: ECS runs x86, so building on an arm64 Mac
+# without this produces images that fail to start in the cluster.
+
+name: opss-par-aws
+
+services:
+  api:
+    image: par/api:aws
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Api/Presentation/Opss.PrimaryAuthorityRegister.Api/Dockerfile
+
+  web:
+    image: par/web:aws
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Web/Presentation/Opss.PrimaryAuthorityRegister.Web/Dockerfile
+
+  notify:
+    image: par/notify:aws
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Services/Notify/Opss.Par.Services.Notify/Dockerfile
+
+  reseeder:
+    image: par/reseed:aws
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Utilities/Opss.PrimaryAuthorityRegister.NightlyReseed/Dockerfile

@@ -1,0 +1,201 @@
+﻿# Standalone Compose stack for local development.
+#
+#   docker compose -f docker-compose.local.yml up --build
+#
+# Runs the whole system without Visual Studio's docker-compose project type, so
+# it works from a shell, Rider, or any other editor.
+#
+# The -f is required. docker-compose.override.yml is merged
+# automatically into any default-named base file, and it mounts user secrets
+# under /root, which the non-root app user cannot read. Naming this file outside
+# the default set keeps it self-contained and leaves docker-compose.yml and
+# docker-compose.override.yml as the untouched Visual Studio dcproj path.
+#
+# To drop the flag, put COMPOSE_FILE=docker-compose.local.yml in your .env.
+#
+# One-time setup
+# --------------
+# 1. HTTPS certificate. The OIDC providers are registered against
+#    https://localhost:9443, so the web container has to serve HTTPS:
+#
+#      dotnet dev-certs https -ep "$env:APPDATA\ASP.NET\Https\par-local.pfx" -p parlocaldev
+#      dotnet dev-certs https --trust
+#
+#
+# 2. Host entry for `db`, so EF migrations can be run from the host (see README):
+#
+#      Add-Content -Path $env:windir\System32\drivers\etc\hosts -Value "`n127.0.0.1`tdb" -Force
+#
+# User secrets supply the db connection string, JWT signing key, OIDC client
+# credentials and the GOV.UK Notify API key. They are mounted read-only from
+# %APPDATA%, which Compose reads from the environment or the gitignored .env.
+# The mount target is /home/app, `app` user (APP_UID 1654). 
+# If layered over docker-compose.aws.yml, the mount target becomes
+# /home/nonroot, `nonroot` (65532, home /home/nonroot).
+#
+# Published ports
+# ---------------
+#   web         https://localhost:9443  (http://localhost:9080 redirects)
+#   api         http://localhost:8080
+#   postgres    localhost:5432
+#   localstack  http://localhost:4566
+#   redis       localhost:6379
+
+name: opss-par
+
+services:
+  db:
+    image: postgres:17.6
+    environment:
+      POSTGRES_DB: par
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d par"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  cache:
+    image: redis:8-alpine
+    command: redis-server --save 20 1 --loglevel warning
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  localstack:
+    image: localstack/localstack:4.14
+    # No AWS_DEFAULT_REGION: awslocal defaults to us-east-1
+    environment:
+      SERVICES: s3,sqs,sns
+      DEBUG: 1
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack-data:/var/lib/localstack
+      - ./localstack-setup.sh:/etc/localstack/init/ready.d/script.sh:ro
+    healthcheck:
+      # Asserts the ready.d init script finished, not merely that the services
+      # are up. localstack reports s3/sqs/sns available before it runs the
+      # script, and notify exits on startup if dev-notify-queue is not there yet.
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/init | grep -q '\"READY\": true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  api:
+    image: par/api:local
+    build:
+      context: .
+      dockerfile: Api/Presentation/Opss.PrimaryAuthorityRegister.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
+      - ${APPDATA}/Microsoft/UserSecrets:/home/nonroot/.microsoft/usersecrets:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health-check/pingdom-xml"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  web:
+    image: par/web:local
+    build:
+      context: .
+      dockerfile: Web/Presentation/Opss.PrimaryAuthorityRegister.Web/Dockerfile
+    # 8080/8443 rather than 80/443 so the non-root app user is not binding
+    # privileged ports.
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: https://+:8443;http://+:8080
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /certs/par-local.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: ${HTTPS_CERT_PASSWORD:-parlocaldev}
+    ports:
+      - "9443:8443"
+      - "9080:8080"
+    volumes:
+      - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
+      - ${APPDATA}/Microsoft/UserSecrets:/home/nonroot/.microsoft/usersecrets:ro
+      # Mounted at /certs, deliberately not the conventional
+      # /home/app/.aspnet/https, because the non-root app user cannot read /home/app.
+      - ${APPDATA}/ASP.NET/Https:/certs:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health-check/pingdom-xml"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  notify:
+    image: par/notify:local
+    build:
+      context: .
+      dockerfile: Services/Notify/Opss.Par.Services.Notify/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Development
+    volumes:
+      - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
+      - ${APPDATA}/Microsoft/UserSecrets:/home/nonroot/.microsoft/usersecrets:ro
+    depends_on:
+      localstack:
+        condition: service_healthy
+
+  reseeder:
+    image: par/reseeder:local
+    build:
+      context: .
+      dockerfile: Utilities/Opss.PrimaryAuthorityRegister.NightlyReseed/Dockerfile
+    env_file: ./NightlyReseed.env
+    environment:
+      TZ: Europe/London
+      # A one-shot job that truncates and repopulates the database, off
+      # by default: the container starts, sees RUN=false and exits 0. Reseed on
+      # demand by overriding RUN inside the container:
+      #   docker compose -f docker-compose.local.yml run --rm -e RUN=true reseeder
+      # Or set RESEED_ON_STARTUP=true in the host environment or .env to have it
+      # reseed as part of a normal `up`.
+      RUN: ${RESEED_ON_STARTUP:-false}
+      # needed for redis
+      Aws__UseLocalStack: "true"
+    depends_on:
+      api:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  db-data:
+  redis-data:
+  localstack-data:

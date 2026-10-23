@@ -1,0 +1,57 @@
+@page "/"
+@inject CounterService Counters
+@inject ICurrentUser CurrentUser
+
+<PageTitle>@(_view?.C.Name ?? "Pacer")</PageTitle>
+
+@if (_loading)
+{
+    <p class="loading">Loading…</p>
+}
+else if (_view is not null)
+{
+    <CounterPanel View="_view" OnIncrement="Increment" OnDecrement="Decrement" />
+}
+else if (_hasCounters)
+{
+    <section class="empty">
+        <h1>No default counter</h1>
+        <p>Choose which counter appears on this page.</p>
+        <a class="btn" href="/default">Choose default counter</a>
+    </section>
+}
+else
+{
+    <section class="empty">
+        <h1>Start your first counter</h1>
+        <p>Set a number to count up to and a date to reach it by. Pacer works out how many clicks a week you need.</p>
+        <a class="btn" href="/counters/new">Add counter</a>
+    </section>
+}
+
+@code {
+    private CounterView? _view;
+    private bool _hasCounters;
+    private bool _loading = true;
+    private string _sub = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sub = await CurrentUser.GetSubAsync();
+        _view = await Counters.GetDefaultAsync(_sub);
+        if (_view is null) _hasCounters = await Counters.HasCountersAsync(_sub);
+        _loading = false;
+    }
+
+    private async Task Increment()
+    {
+        if (_view is null) return;
+        _view = await Counters.IncrementAsync(_sub, _view.C.Id) ?? _view;
+    }
+
+    private async Task Decrement()
+    {
+        if (_view is null) return;
+        _view = await Counters.DecrementAsync(_sub, _view.C.Id) ?? _view;
+    }
+}

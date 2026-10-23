@@ -1,0 +1,79 @@
+@{
+    var c = View.C;
+    var s = View.S;
+}
+<section class="counter">
+    <h1 class="counter-name">
+        @c.Name
+        @if (View.IsDefault)
+        {
+            <span class="badge">Default</span>
+        }
+    </h1>
+
+    <button type="button" class="tap@(s.Status == PaceStatus.Complete ? " is-complete" : "")"
+            style="--p: @(Fmt.Percent(s.Percent))"
+            aria-label="Add one to @(c.Name). Currently @(c.Current) of @(c.Target)"
+            @onclick="OnIncrement">
+        <span class="tap-face">
+            <span class="tap-count@(_pop ? " pop" : "")" @key="c.Current">@c.Current</span>
+            <span class="tap-of">of @c.Target</span>
+        </span>
+    </button>
+    <p class="tap-hint">Tap the circle to add 1</p>
+
+    <div class="pace @(s.Status.ToString().ToLowerInvariant())" aria-live="polite">
+        @switch (s.Status)
+        {
+            case PaceStatus.Active:
+                <p class="pace-main"><strong>@Fmt.Num(s.PerWeek)</strong> clicks per week</p>
+                <p class="pace-sub">to reach @(c.Target) by @Fmt.Date(c.TargetDate)</p>
+                break;
+            case PaceStatus.DueToday:
+                <p class="pace-main"><strong>@s.Remaining</strong> to go today</p>
+                <p class="pace-sub">The target date is today</p>
+                break;
+            case PaceStatus.Overdue:
+                <p class="pace-main"><strong>@s.Remaining</strong> to go</p>
+                <p class="pace-sub">@Fmt.Days(s.DaysLeft) past the target date</p>
+                break;
+            default:
+                <p class="pace-main"><strong>Target reached</strong></p>
+                <p class="pace-sub">@(c.Target) counted@(s.DaysLeft > 0 ? ", " + Fmt.Days(s.DaysLeft) + " early" : "")</p>
+                break;
+        }
+    </div>
+
+    <dl class="facts">
+        <div><dt>Remaining</dt><dd>@s.Remaining</dd></div>
+        <div><dt>Target date</dt><dd>@Fmt.Date(c.TargetDate)</dd></div>
+        @if (s.Status == PaceStatus.Active)
+        {
+            <div><dt>Days left</dt><dd>@s.DaysLeft</dd></div>
+            <div><dt>Clicks per week</dt><dd>@Fmt.Num(s.PerWeek)</dd></div>
+        }
+    </dl>
+
+    <p class="undo">
+        <button type="button" class="link" disabled="@(c.Current == 0)" @onclick="OnDecrement">Undo last click</button>
+    </p>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public CounterView View { get; set; } = default!;
+
+    [Parameter] public EventCallback OnIncrement { get; set; }
+
+    [Parameter] public EventCallback OnDecrement { get; set; }
+
+    private int? _previous;
+    private bool _pop;
+
+    // Animate the number only when it changes after the first render.
+    protected override void OnParametersSet()
+    {
+        var now = View.C.Current;
+        _pop = _previous.HasValue && _previous != now;
+        _previous = now;
+    }
+}

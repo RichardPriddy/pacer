@@ -1,0 +1,53 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Nav
+
+<header class="bar">
+    <a class="brand" href="/">Pacer</a>
+    <AuthorizeView>
+        <Authorized>
+            <button class="menu-btn" type="button" aria-expanded="@(_open ? "true" : "false")" aria-controls="menu" @onclick="Toggle">
+                <span class="sr">Menu</span>
+                <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" /></svg>
+            </button>
+            @if (_open)
+            {
+                <div class="backdrop" @onclick="Close"></div>
+                <nav class="menu" id="menu" @onclick="Close">
+                    <a href="/counters/new">Add new counter</a>
+                    <a href="/counters">List counters</a>
+                    <a href="/default">Change default counter</a>
+                    <div class="menu-footer">
+                        <button type="button" class="menu-signout" @onclick="SignOut">
+                            Sign out <span class="who">@context.User.FindFirst("name")?.Value</span>
+                        </button>
+                    </div>
+                </nav>
+            }
+        </Authorized>
+    </AuthorizeView>
+</header>
+
+<main class="page">
+    @Body
+</main>
+
+@code {
+    private bool _open;
+
+    protected override void OnInitialized() => Nav.LocationChanged += OnLocationChanged;
+
+    private void Toggle() => _open = !_open;
+
+    private void Close() => _open = false;
+
+    private void SignOut() => Nav.NavigateTo("/logout", forceLoad: true);
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _open = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+}

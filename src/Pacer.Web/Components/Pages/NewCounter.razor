@@ -1,0 +1,32 @@
+@page "/counters/new"
+@inject CounterService Counters
+@inject ICurrentUser CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>Add counter · Pacer</PageTitle>
+
+<CounterForm Heading="Add counter"
+             SubmitText="Create counter"
+             CancelHref="/counters"
+             Values="_values"
+             Errors="_errors"
+             MinDate="@Counters.Today().ToString("yyyy-MM-dd")"
+             OnSave="Save" />
+
+@code {
+    private readonly CounterFormValues _values = new();
+    private IReadOnlyList<string> _errors = [];
+
+    private async Task Save()
+    {
+        var sub = await CurrentUser.GetSubAsync();
+        var result = await Counters.CreateAsync(sub, _values);
+        if (!result.Ok)
+        {
+            _errors = result.Errors;
+            return;
+        }
+
+        Nav.NavigateTo($"/counters/{result.Id}");
+    }
+}

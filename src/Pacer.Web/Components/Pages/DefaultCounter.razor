@@ -1,0 +1,59 @@
+@page "/default"
+@inject CounterService Counters
+@inject ICurrentUser CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>Default counter · Pacer</PageTitle>
+
+<h1 class="page-title">Default counter</h1>
+<p class="lede">The default counter is the one shown on the home page.</p>
+
+@if (_loading)
+{
+    <p class="loading">Loading…</p>
+}
+else if (_items.Count > 0)
+{
+    <ul class="list">
+        @foreach (var it in _items)
+        {
+            <li class="row">
+                <span class="list-name">@it.C.Name</span>
+                @if (it.IsDefault)
+                {
+                    <span class="badge">Default</span>
+                }
+                else
+                {
+                    <button type="button" class="btn secondary small" @onclick="() => MakeDefault(it.C.Id)">Make default</button>
+                }
+            </li>
+        }
+    </ul>
+}
+else
+{
+    <section class="empty">
+        <p>Add a counter first, then choose it here.</p>
+        <a class="btn" href="/counters/new">Add counter</a>
+    </section>
+}
+
+@code {
+    private IReadOnlyList<CounterView> _items = [];
+    private bool _loading = true;
+    private string _sub = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sub = await CurrentUser.GetSubAsync();
+        _items = await Counters.ListAsync(_sub);
+        _loading = false;
+    }
+
+    private async Task MakeDefault(long id)
+    {
+        if (await Counters.SetDefaultAsync(_sub, id))
+            Nav.NavigateTo("/");
+    }
+}

@@ -1,0 +1,76 @@
+@page "/counters/{Id:long}/edit"
+@inject CounterService Counters
+@inject ICurrentUser CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>Edit counter · Pacer</PageTitle>
+
+@if (_loading)
+{
+    <p class="loading">Loading…</p>
+}
+else if (_missing)
+{
+    <section class="empty">
+        <h1>Not found</h1>
+        <p>That counter doesn’t exist.</p>
+        <a class="btn" href="/counters">All counters</a>
+    </section>
+}
+else
+{
+    <CounterForm Heading="Edit counter"
+                 SubmitText="Save changes"
+                 CancelHref="@($"/counters/{Id}")"
+                 Editing="true"
+                 Values="_values"
+                 Errors="_errors"
+                 OnSave="Save" />
+}
+
+@code {
+    [Parameter] public long Id { get; set; }
+
+    private readonly CounterFormValues _values = new();
+    private IReadOnlyList<string> _errors = [];
+    private bool _loading = true;
+    private bool _missing;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        var sub = await CurrentUser.GetSubAsync();
+        var view = await Counters.GetAsync(sub, Id);
+        if (view is null)
+        {
+            _missing = true;
+        }
+        else
+        {
+            _missing = false;
+            _values.Name = view.C.Name;
+            _values.Target = view.C.Target.ToString();
+            _values.TargetDate = view.C.TargetDate.ToString("yyyy-MM-dd");
+            _values.Current = view.C.Current.ToString();
+        }
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        var sub = await CurrentUser.GetSubAsync();
+        var result = await Counters.UpdateAsync(sub, Id, _values);
+        if (result.NotFound)
+        {
+            _missing = true;
+            return;
+        }
+        if (!result.Ok)
+        {
+            _errors = result.Errors;
+            return;
+        }
+
+        Nav.NavigateTo($"/counters/{Id}");
+    }
+}

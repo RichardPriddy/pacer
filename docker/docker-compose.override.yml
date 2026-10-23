@@ -1,0 +1,18 @@
+﻿version: '3.4'
+
+# /root is kept for Visual Studio's own tooling, but all containers now run as
+# nonroot on their hardened bases and cannot read it, so everything they
+# actually load is mounted somewhere nonroot can reach.
+
+services:
+  pacer-web:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    ports:
+      - "8080"
+    volumes:
+      - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro
+      - ${APPDATA}/Microsoft/UserSecrets:/home/nonroot/.microsoft/usersecrets:ro
+      - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
+      - ${APPDATA}/ASP.NET/Https:/certs:ro

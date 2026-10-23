@@ -1,0 +1,73 @@
+<h1 class="page-title">@Heading</h1>
+
+@if (Errors.Count > 0)
+{
+    <div class="errors" role="alert">
+        <p>Fix the following and try again:</p>
+        <ul>
+            @foreach (var e in Errors)
+            {
+                <li>@e</li>
+            }
+        </ul>
+    </div>
+}
+
+<EditForm Model="Values" OnSubmit="Submit" class="form">
+    <label>
+        Name
+        <InputText @bind-Value="Values.Name" maxlength="80" autocomplete="off" placeholder="Counter name" />
+    </label>
+    <label>
+        Count to
+        <InputText @bind-Value="Values.Target" type="number" min="1" step="1" inputmode="numeric" placeholder="500" />
+    </label>
+    <label>
+        Target date
+        <InputText @bind-Value="Values.TargetDate" type="date" min="@MinDate" />
+    </label>
+    @if (Editing)
+    {
+        <label>
+            Current count
+            <InputText @bind-Value="Values.Current" type="number" min="0" step="1" inputmode="numeric" />
+        </label>
+    }
+    <div class="actions">
+        <button type="submit" class="btn" disabled="@_busy">@SubmitText</button>
+        <a class="btn secondary" href="@CancelHref">Cancel</a>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter, EditorRequired] public string Heading { get; set; } = "";
+
+    [Parameter, EditorRequired] public string SubmitText { get; set; } = "Save";
+
+    [Parameter, EditorRequired] public string CancelHref { get; set; } = "/";
+
+    [Parameter, EditorRequired] public CounterFormValues Values { get; set; } = new();
+
+    [Parameter] public IReadOnlyList<string> Errors { get; set; } = [];
+
+    [Parameter] public bool Editing { get; set; }
+
+    [Parameter] public string? MinDate { get; set; }
+
+    [Parameter] public EventCallback OnSave { get; set; }
+
+    private bool _busy;
+
+    private async Task Submit()
+    {
+        _busy = true;
+        try
+        {
+            await OnSave.InvokeAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

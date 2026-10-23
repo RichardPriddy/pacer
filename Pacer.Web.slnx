@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="docker/docker-compose.dcproj" Id="457cd213-4702-4fa9-b85b-208ca1c1fb73">
+    <Build />
+  </Project>
+  <Project Path="src/Pacer.Web.Tests/Pacer.Web.Tests.csproj" Id="1653f1e9-a71c-4438-863a-03258173d067" />
+  <Project Path="src/Pacer.Web/Pacer.Web.csproj" />
+</Solution>

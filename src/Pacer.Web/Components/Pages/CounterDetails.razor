@@ -1,0 +1,87 @@
+@page "/counters/{Id:long}"
+@inject CounterService Counters
+@inject ICurrentUser CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>@(_view?.C.Name ?? "Counter") · Pacer</PageTitle>
+
+@if (_loading)
+{
+    <p class="loading">Loading…</p>
+}
+else if (_view is null)
+{
+    <section class="empty">
+        <h1>Not found</h1>
+        <p>That counter doesn’t exist.</p>
+        <a class="btn" href="/counters">All counters</a>
+    </section>
+}
+else
+{
+    <CounterPanel View="_view" OnIncrement="Increment" OnDecrement="Decrement" />
+
+    <div class="actions">
+        @if (!_view.IsDefault)
+        {
+            <button type="button" class="btn secondary" @onclick="MakeDefault">Make default</button>
+        }
+        <a class="btn secondary" href="/counters/@Id/edit">Edit</a>
+        @if (_confirming)
+        {
+            <span class="confirm">Delete “@(_view.C.Name)”?</span>
+            <button type="button" class="btn danger" @onclick="Delete">Yes, delete</button>
+            <button type="button" class="btn secondary" @onclick="CancelDelete">Cancel</button>
+        }
+        else
+        {
+            <button type="button" class="btn danger" @onclick="AskDelete">Delete</button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public long Id { get; set; }
+
+    private CounterView? _view;
+    private bool _loading = true;
+    private bool _confirming;
+    private string _sub = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _confirming = false;
+        _sub = await CurrentUser.GetSubAsync();
+        _view = await Counters.GetAsync(_sub, Id);
+        _loading = false;
+    }
+
+    private async Task Increment()
+    {
+        if (_view is null) return;
+        _view = await Counters.IncrementAsync(_sub, Id) ?? _view;
+    }
+
+    private async Task Decrement()
+    {
+        if (_view is null) return;
+        _view = await Counters.DecrementAsync(_sub, Id) ?? _view;
+    }
+
+    private async Task MakeDefault()
+    {
+        if (await Counters.SetDefaultAsync(_sub, Id))
+            _view = await Counters.GetAsync(_sub, Id);
+    }
+
+    private void AskDelete() => _confirming = true;
+
+    private void CancelDelete() => _confirming = false;
+
+    private async Task Delete()
+    {
+        await Counters.DeleteAsync(_sub, Id);
+        Nav.NavigateTo("/counters");
+    }
+}

@@ -1,0 +1,72 @@
+@page "/counters"
+@inject CounterService Counters
+@inject ICurrentUser CurrentUser
+
+<PageTitle>Counters · Pacer</PageTitle>
+
+<h1 class="page-title">Counters</h1>
+
+@if (_loading)
+{
+    <p class="loading">Loading…</p>
+}
+else
+{
+    @if (_items.Count > 0)
+    {
+        <ul class="list">
+            @foreach (var it in _items)
+            {
+                <li>
+                    <a href="/counters/@it.C.Id">
+                        <span class="list-name">
+                            @it.C.Name
+                            @if (it.IsDefault)
+                            {
+                                <span class="badge">Default</span>
+                            }
+                        </span>
+                        <span class="list-meta">
+                            @it.C.Current of @it.C.Target by @Fmt.Date(it.C.TargetDate)
+                            @switch (it.S.Status)
+                            {
+                                case PaceStatus.Active:
+                                    <text>· @Fmt.Num(it.S.PerWeek) a week</text>
+                                    break;
+                                case PaceStatus.Complete:
+                                    <text>· reached</text>
+                                    break;
+                                case PaceStatus.Overdue:
+                                    <text>· overdue</text>
+                                    break;
+                                default:
+                                    <text>· due today</text>
+                                    break;
+                            }
+                        </span>
+                        <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: @(Fmt.Percent(it.S.Percent))%"></span></span>
+                    </a>
+                </li>
+            }
+        </ul>
+    }
+    else
+    {
+        <section class="empty">
+            <p>You have no counters yet.</p>
+        </section>
+    }
+    <p><a class="btn" href="/counters/new">Add counter</a></p>
+}
+
+@code {
+    private IReadOnlyList<CounterView> _items = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sub = await CurrentUser.GetSubAsync();
+        _items = await Counters.ListAsync(sub);
+        _loading = false;
+    }
+}
