@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
   <Project Path="docker/docker-compose.dcproj" Id="457cd213-4702-4fa9-b85b-208ca1c1fb73">
     <Build />
   </Project>
